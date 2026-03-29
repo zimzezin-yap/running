@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SVG Viewer</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      body {
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+      }
+
+      body.is-dragging {
+        cursor: grabbing;
+      }
+
+      #viewport {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #artwork {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        -webkit-user-drag: none;
+        user-select: none;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <img id="artwork" src="./SVG/아트보드 2.svg" alt="" draggable="false" />
+    </div>
+
+    <script>
+      const viewport = document.getElementById("viewport");
+      const artwork = document.getElementById("artwork");
+
+      const state = {
+        scale: 1,
+        minScale: 0.1,
+        maxScale: 12,
+        x: 0,
+        y: 0,
+        dragging: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        originX: 0,
+        originY: 0,
+      };
+
+      function render() {
+        artwork.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+      }
+
+      function fitToScreen() {
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const iw = artwork.naturalWidth;
+        const ih = artwork.naturalHeight;
+
+        if (!iw || !ih) return;
+
+        state.scale = Math.min(vw / iw, vh / ih);
+        state.x = (vw - iw * state.scale) / 2;
+        state.y = (vh - ih * state.scale) / 2;
+        render();
+      }
+
+      function clampScale(nextScale) {
+        return Math.min(state.maxScale, Math.max(state.minScale, nextScale));
+      }
+
+      viewport.addEventListener(
+        "wheel",
+        (event) => {
+          event.preventDefault();
+
+          const rect = viewport.getBoundingClientRect();
+          const pointerX = event.clientX - rect.left;
+          const pointerY = event.clientY - rect.top;
+          const scaleFactor = event.deltaY < 0 ? 1.04 : 0.96;
+          const nextScale = clampScale(state.scale * scaleFactor);
+
+          if (nextScale === state.scale) return;
+
+          const contentX = (pointerX - state.x) / state.scale;
+          const contentY = (pointerY - state.y) / state.scale;
+
+          state.scale = nextScale;
+          state.x = pointerX - contentX * state.scale;
+          state.y = pointerY - contentY * state.scale;
+          render();
+        },
+        { passive: false }
+      );
+
+      viewport.addEventListener("pointerdown", (event) => {
+        state.dragging = true;
+        state.pointerId = event.pointerId;
+        state.startX = event.clientX;
+        state.startY = event.clientY;
+        state.originX = state.x;
+        state.originY = state.y;
+
+        document.body.classList.add("is-dragging");
+        viewport.setPointerCapture(event.pointerId);
+      });
+
+      viewport.addEventListener("pointermove", (event) => {
+        if (!state.dragging || event.pointerId !== state.pointerId) return;
+
+        state.x = state.originX + (event.clientX - state.startX);
+        state.y = state.originY + (event.clientY - state.startY);
+        render();
+      });
+
+      function stopDragging(event) {
+        if (event.pointerId !== state.pointerId) return;
+
+        state.dragging = false;
+        state.pointerId = null;
+        document.body.classList.remove("is-dragging");
+      }
+
+      viewport.addEventListener("pointerup", stopDragging);
+      viewport.addEventListener("pointercancel", stopDragging);
+      artwork.addEventListener("load", fitToScreen);
+      window.addEventListener("resize", fitToScreen);
+    </script>
+  </body>
+</html>
